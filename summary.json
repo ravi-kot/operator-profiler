@@ -1,0 +1,19 @@
+{
+  "timestamp_utc": "2026-01-29T19:29:49.863975+00:00",
+  "llm": {
+    "tokens_per_sec_p50": 28.54482199384272,
+    "latency_p50_s": 4.484175799996592,
+    "peak_vram_mb_p50": 2116.1181640625,
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "gpu_name": "NVIDIA GeForce RTX 5070 Laptop GPU"
+  },
+  "layernorm": {
+    "baseline_p50_ms": 0.0358240008354187,
+    "baseline_p95_ms": 0.05004960149526594,
+    "optimized_p50_ms": 0.035551998764276505,
+    "optimized_p95_ms": 0.05023839864879846,
+    "speedup_p50": 1.0076508235991364,
+    "speedup_p95": 0.9962419750905608,
+    "max_abs_error": 0.0
+  }
+}
