@@ -1,6 +1,6 @@
 # OperatorProfiler
 
-GPU operator performance lab: LLM inference benchmark, LayerNorm (Triton), and a summary dashboard.
+GPU operator performance : LLM inference benchmark, LayerNorm (Triton), and a summary dashboard.
 
 **Upload to GitHub:** see [GITHUB.md](GITHUB.md) for step-by-step instructions.
 
