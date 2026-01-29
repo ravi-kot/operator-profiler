@@ -1,0 +1,4 @@
+torch
+transformers
+numpy
+# triton: Linux only (pip install triton). On Windows we fall back to F.layer_norm.

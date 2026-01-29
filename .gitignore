@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+.eggs/
+venv/
+.venv/
+env/
+
+# Bench artifacts (optional: remove this line to commit a demo snapshot)
+artifacts/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.log
+.env
+.env.local
+
+# Dashboard (only if you use Node later)
+node_modules/
+.next/
+out/

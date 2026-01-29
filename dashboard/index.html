@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OperatorProfiler — GPU Performance Summary</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>OperatorProfiler</h1>
+    <p class="subtitle" id="subtitle">Loading summary…</p>
+
+    <section class="cards" id="cards" aria-hidden="true"></section>
+    <section class="table_wrap" id="table_wrap" aria-hidden="true">
+      <table>
+        <thead>
+          <tr><th>Metric</th><th>Value</th></tr>
+        </thead>
+        <tbody id="table_body"></tbody>
+      </table>
+    </section>
+    <div class="status" id="status" aria-hidden="true"></div>
+  </div>
+  <div class="container loading" id="loading">Loading summary…</div>
+  <div class="container error" id="error" style="display:none"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
