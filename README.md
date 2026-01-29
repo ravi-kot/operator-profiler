@@ -11,16 +11,22 @@ A self-contained performance project demonstrating disciplined measurement, oper
 ---
 
 ## Table of Contents
-
+- [Dashboard Screenshot](#dashboard-screenshot)
 - [Aim & Objective](#aim--objective)
-- [Why This Project (AMD Relevance)](#why-this-project-amd-relevance)
+- [Summary](#Summary)
 - [Achievements & Deliverables](#achievements--deliverables)
 - [Results](#results)
-- [Dashboard Screenshot](#dashboard-screenshot)
 - [Repository Structure](#repository-structure)
 - [Quick Start](#quick-start)
 - [Technical Highlights](#technical-highlights)
 - [References](#references)
+
+---
+
+## Dashboard Screenshot
+
+
+[OperatorProfiler Dashboard](report/dashboard.png)
 
 ---
 
@@ -36,7 +42,7 @@ A self-contained performance project demonstrating disciplined measurement, oper
 
 ---
 
-## Why This Project (AMD Relevance)
+## Summary
 
 - **GPU performance at operator level** — Focus on GEMM, attention, and normalization patterns relevant to AI workloads on GPUs (including AMD ROCm targets).
 - **Rigorous measurement** — Warmup, GPU synchronization, P50/P95 latency, and delta metrics (baseline vs optimized) instead of one-off numbers.
@@ -86,19 +92,6 @@ Metrics below are from a single run (see `artifacts/summary.json`). Re-run the b
 
 *On Windows, Triton is not available on PyPI; the “optimized” path uses the same PyTorch implementation, hence speedup ≈ 1×. On Linux, `pip install triton` enables the Triton kernel for measurable speedup.*
 
----
-
-## Dashboard Screenshot
-
-*Add your dashboard screenshot here (e.g. after deploying to Vercel or running the dashboard locally).*
-
-1. Save your screenshot as `report/dashboard.png`.
-2. The image will appear below once the file is added.
-
-<!-- Paste your screenshot in report/dashboard.png and uncomment the next line -->
-<!-- ![OperatorProfiler Dashboard](report/dashboard.png) -->
-
-**Placeholder:** After you add `report/dashboard.png`, uncomment the line above in this README so the image displays.
 
 ---
 
