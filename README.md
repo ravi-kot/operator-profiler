@@ -1,11 +1,5 @@
 # OperatorProfiler
 
-<<<<<<< HEAD
-GPU operator performance : LLM inference benchmark, LayerNorm (Triton), and a summary dashboard.
-=======
-**End-to-end GPU operator performance lab: baseline inference → profiling mindset → kernel optimization → reproducible metrics and dashboard.**
->>>>>>> e25ef3a (Update README, add dashboard screenshot)
-
 A self-contained performance project demonstrating disciplined measurement, operator-level optimization (LayerNorm with Triton), and product-style packaging (JSON/CSV artifacts, static dashboard) — aligned with GPU software engineering and AI-on-GPU workflows.
 
 ---
