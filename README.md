@@ -1,161 +1,232 @@
-# OperatorProfiler
+# KV Cache Serving Lab
 
+<<<<<<< HEAD
 A self-contained performance project demonstrating disciplined measurement, operator-level optimization (LayerNorm with Triton), and product-style packaging (JSON/CSV artifacts, static dashboard) — aligned with GPU software engineering and AI-on-GPU workflows.
+=======
+`KV Cache Serving Lab` is an inference-systems project for studying how KV-cache policy affects LLM serving performance under realistic multi-request workloads.
 
----
+The project started from an operator-profiling codebase and was refactored into a serving-focused lab with:
+>>>>>>> 132b43b (Convert project into KV cache serving systems lab)
 
-## Table of Contents
-- [Dashboard Screenshot](#dashboard-screenshot)
-- [Aim & Objective](#aim--objective)
-- [Summary](#Summary)
-- [Achievements & Deliverables](#achievements--deliverables)
-- [Results](#results)
-- [Repository Structure](#repository-structure)
-- [Quick Start](#quick-start)
-- [Technical Highlights](#technical-highlights)
-- [References](#references)
+- paged KV cache simulation
+- hot-prefix pinning
+- request-aware cache policy
+- reuse-aware scheduling
+- cost-aware memory control
+- CUDA extension scaffolding for KV-page operations
 
----
+The goal is not just to benchmark one model run. The goal is to measure how cache layout, prefix reuse, scheduling, and memory pressure interact when many requests compete for the same GPU budget.
 
-## Dashboard Screenshot
+## Overview
 
+Modern LLM serving is heavily shaped by KV-cache behavior. Long contexts, repeated system prompts, tool schemas, and bursty request traffic can all turn KV cache into a first-order latency and memory bottleneck.
 
-[OperatorProfiler Dashboard](report/dashboard.png)
+This repository focuses on the serving layer around that problem:
 
----
+- which prefixes should be pinned
+- which requests should get priority
+- how batching should exploit shared prefixes
+- how memory policy should react when capacity becomes tight
+- how to evaluate these decisions with system-level metrics
 
-## Aim & Objective
+## Core Features
 
-**Aim:** Demonstrate a complete GPU performance workflow: establish baseline metrics, identify operator hotspots, implement and validate an optimized kernel, and package results for clear, reproducible reporting.
+### Paged KV Cache
 
-**Objectives:**
+The runtime models KV storage as fixed-size token blocks so cache usage can be reasoned about in terms of pages, reuse, and fragmentation.
 
-1. **Baseline LLM inference** — Measure end-to-end inference (tokens/sec, latency, peak VRAM) with controlled methodology (warmup, synchronization, repeated runs, P50/P95).
-2. **Operator-level optimization** — Implement a custom LayerNorm kernel (Triton), validate correctness against PyTorch, and report delta metrics (speedup, max error).
-3. **Reproducibility & packaging** — Export metrics to JSON/CSV, consolidate into a single summary, and expose them via a static dashboard for reviewers.
+### Hot-Prefix Pinning
 
----
+Frequently reused prefixes such as system prompts, templates, and tool schemas can be pinned so they remain resident across requests.
 
-## Summary
+### Request-Aware Policy
 
-- **GPU performance at operator level** — Focus on GEMM, attention, and normalization patterns relevant to AI workloads on GPUs (including AMD ROCm targets).
-- **Rigorous measurement** — Warmup, GPU synchronization, P50/P95 latency, and delta metrics (baseline vs optimized) instead of one-off numbers.
-- **Portable optimization approach** — Triton-based kernel as a portable optimization path; methodology transfers to ROCm with a runbook (see [References](#references)).
-- **Product-style delivery** — One-command runs, stable artifact names (`summary.json`, `summary.csv`), and a recruiter-facing dashboard so outcomes are easy to review.
+The cache policy distinguishes between:
 
----
+- interactive chat
+- batch analytics
+- long-context jobs
 
-## Achievements & Deliverables
+This lets the runtime preserve low-latency behavior for high-priority traffic while still supporting heavier workloads.
 
-| Deliverable | Description |
-|-------------|-------------|
-| **LLM inference benchmark** | End-to-end TinyLlama (1B-class) benchmark with tokens/sec, latency, peak VRAM; chat-template–aware; outputs `artifacts/llm.json`. |
-| **LayerNorm kernel** | Triton LayerNorm forward kernel; PyTorch fallback on Windows (Triton not on PyPI); correctness check vs `F.layer_norm`. |
-| **LayerNorm benchmark** | Baseline (PyTorch) vs optimized (Triton) timing with CUDA events; P50/P95 and speedup; outputs `artifacts/layernorm.json`. |
-| **Summary pipeline** | Single script reading all artifacts → `artifacts/summary.json` and `artifacts/summary.csv` as the source of truth for resume/metrics. |
-| **Static dashboard** | HTML/CSS/JS dashboard (no npm); table + highlight cards; deployable to Vercel for a public URL. |
-| **Reproducibility** | Artifacts drive the dashboard; re-run benchmarks and refresh `summary.json` for updated numbers. |
+### Reuse-Aware Scheduler
 
----
+The scheduler forms batches by prefix overlap instead of pure FIFO order, increasing cache reuse and improving throughput under bursty traffic.
 
-## Results
+### Cost-Aware Mode
 
-Metrics below are from a single run (see `artifacts/summary.json`). Re-run the benchmarks to reproduce or update.
+When memory pressure rises, the runtime can respond by:
 
-### LLM Inference (TinyLlama 1.1B-Chat, fp16, 128 max new tokens, 5 repeats)
+- quantizing lower-value KV pages
+- evicting stale reusable blocks
+- reducing effective batch size
+
+## Metrics Tracked
+
+The project tracks serving metrics that matter at the systems level:
+
+- TTFT
+- decode latency per token
+- throughput in tokens/sec
+- peak KV memory
+- average active KV pages
+- cache hit rate
+- prefix reuse rate
+- evictions
+- OOM avoided
+- fragmentation ratio
+
+## Latest Results
+
+The latest local benchmark summary from `artifacts/summary.json` reports:
 
 | Metric | Value |
-|--------|--------|
-| **Model** | TinyLlama/TinyLlama-1.1B-Chat-v1.0 |
-| **GPU** | NVIDIA GeForce RTX 5070 Laptop GPU |
-| **Tokens/sec (P50)** | 28.54 |
-| **Latency P50 (s)** | 4.48 |
-| **Peak VRAM P50 (MB)** | 2116.12 |
+|---|---:|
+| TTFT P50 | 2223.86 ms |
+| Decode Latency / Token P50 | 4.74 ms |
+| Throughput | 1901.55 tok/s |
+| Peak KV Memory | 12460.78 MB |
+| Average Active KV Pages | 1808.97 |
+| Cache Hit Rate | 98.91% |
+| Prefix Reuse Rate | 98.91% |
+| Fragmentation Ratio | 0.0032 |
 
-### LayerNorm (shape `[4, 512, 1024]`, 100 iters, 20 warmup)
+Selected experiment outcomes:
 
-| Metric | Value |
-|--------|--------|
-| **Baseline P50 (ms)** | 0.036 |
-| **Baseline P95 (ms)** | 0.050 |
-| **Optimized P50 (ms)** | 0.036 |
-| **Optimized P95 (ms)** | 0.050 |
-| **Speedup P50** | 1.01× |
-| **Speedup P95** | 1.00× |
-| **Max abs error vs PyTorch** | 0.0 |
-
-*On Windows, Triton is not available on PyPI; the “optimized” path uses the same PyTorch implementation, hence speedup ≈ 1×. On Linux, `pip install triton` enables the Triton kernel for measurable speedup.*
-
-
----
+- At 100 concurrent requests, the reuse-aware serving path reduced TTFT P50 from `10964 ms` to `6988 ms`.
+- At 100 concurrent requests, throughput improved from `1613 tok/s` to `1817 tok/s` versus the baseline path.
+- KV quantization reduced peak KV memory by about `50%` versus fp16 in the synthetic study.
 
 ## Repository Structure
 
-```
+```text
 operator-profiler/
-├── bench/                 # Benchmark and summarization scripts
-│   ├── llm_infer_bench.py # LLM inference → artifacts/llm.json
-│   ├── layernorm_bench.py # LayerNorm baseline vs Triton → artifacts/layernorm.json
-│   ├── summarize.py      # Consolidate artifacts → summary.json, summary.csv
-│   ├── measure.py        # Timing (CUDA events, P50/P95), write_json, device_info
-│   └── utils.py          # Logging, run_main, require_cuda, validators
-├── kernels/               # Optimized operator implementations
-│   └── triton_layernorm.py
-├── dashboard/             # Static dashboard (HTML/CSS/JS, no npm)
-│   ├── index.html
-│   ├── style.css
-│   ├── app.js
-│   └── summary.json      # Copy of summary for dashboard; update from artifacts/
-├── report/                # Screenshots and short narrative (e.g. dashboard.png)
-├── artifacts/             # Generated JSON/CSV (gitignored; re-run to reproduce)
-├── requirements.txt
-└── README.md
+|- bench/                 # benchmark entry points and experiment runners
+|- kv_cache_lab/          # runtime, cache policy, scheduler, workload generation
+|- CUDA/                  # CUDA/C++ extension scaffold for KV-page operations
+|- dashboard/             # static dashboard for viewing benchmark results
+|- docs/                  # architecture and project notes
+|- artifacts/             # generated JSON/CSV outputs
+|- kernels/               # legacy operator-kernel work retained from the original base
+|- report/                # screenshots and supporting assets
 ```
 
----
+## Getting Started
 
-## Quick Start
+### Run the Full Suite
 
-**Environment:** Python 3.10+, CUDA-enabled PyTorch, conda env `ml` (or install from `requirements.txt`).
+```powershell
+cd c:\Users\Admin\Workspace\operator-profiler
+python -m bench.run_all
+```
 
-```bash
-# From repo root
-conda activate ml
+This generates:
 
-# 1. LLM inference benchmark
-python -m bench.llm_infer_bench --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --max_new_tokens 128 --out artifacts/llm.json
+- `artifacts/kv_service.json`
+- `artifacts/burst_load.json`
+- `artifacts/block_sweep.json`
+- `artifacts/chunked_prefill.json`
+- `artifacts/kv_quantization.json`
+- `artifacts/summary.json`
+- `artifacts/summary.csv`
+- `dashboard/summary.json`
+- `dashboard/summary.js`
 
-# 2. LayerNorm benchmark
-python -m bench.layernorm_bench --out artifacts/layernorm.json
+### Open the Dashboard
 
-# 3. Summarize all artifacts
+You can open [dashboard/index.html](c:/Users/Admin/Workspace/operator-profiler/dashboard/index.html) directly, or run a local server:
+
+```powershell
+cd c:\Users\Admin\Workspace\operator-profiler\dashboard
+python -m http.server 8080 --bind 127.0.0.1
+```
+
+Then visit `http://127.0.0.1:8080`.
+
+## Main Commands
+
+Run the primary benchmark:
+
+```powershell
+python -m bench.kv_service_bench --out artifacts\kv_service.json
+```
+
+Run the burst-load experiment:
+
+```powershell
+python -m bench.experiment_burst_load --out artifacts\burst_load.json
+```
+
+Run the block-size sweep:
+
+```powershell
+python -m bench.experiment_block_sweep --out artifacts\block_sweep.json
+```
+
+Run the chunked-prefill study:
+
+```powershell
+python -m bench.experiment_chunked_prefill --out artifacts\chunked_prefill.json
+```
+
+Run the KV-quantization study:
+
+```powershell
+python -m bench.experiment_kv_quantization --out artifacts\kv_quantization.json
+```
+
+Rebuild the consolidated summary:
+
+```powershell
 python -m bench.summarize --out-dir artifacts
-
-# 4. Update dashboard data and run locally
-copy artifacts\summary.json dashboard\summary.json
-cd dashboard && python -m http.server 8080 --bind 127.0.0.1
-# Open http://127.0.0.1:8080
 ```
 
-**Deploy dashboard to Vercel:** Set root directory to `dashboard`; no build step. See `dashboard/README.md`.
+## Experiments Included
 
----
+### Burst Load
 
-## Technical Highlights
+Compares a baseline FIFO path against the reuse-aware serving path at `10`, `50`, and `100` concurrent requests.
 
-- **Measurement hygiene:** Warmup runs, GPU synchronization before/after timing, P50/P95 over multiple iterations (not single-run).
-- **Correctness:** LayerNorm kernel validated with max absolute error vs PyTorch `F.layer_norm`.
-- **Single source of truth:** All benchmarks write JSON artifacts; `summarize.py` produces `summary.json` / `summary.csv` for resume and dashboard.
-- **Portability:** Triton kernel runs on Linux; PyTorch fallback on Windows so the benchmark and dashboard still run.
+### Block-Size Sweep
 
----
+Sweeps `8`, `16`, `32`, and `64` token blocks to study the tradeoff between reuse and fragmentation.
 
-## References
+### Chunked Prefill
 
-- Lab guide and runbook: `OperatorProfiler_Lab_Guide.docx` (setup, measurement hygiene, ROCm context).
-- Triton: [triton-lang.org](https://triton-lang.org) (Linux; LayerNorm tutorial).
-- Upload to GitHub: [GITHUB.md](GITHUB.md).
+Measures how chunking affects TTFT and long-context stability.
 
----
+### KV Quantization
 
-*OperatorProfiler — GPU operator performance lab for reproducible metrics and operator-level optimization.*
+Compares fp16, fp8-style, and int8 KV storage modes for memory savings, latency, and reconstruction fidelity.
+
+## CUDA Support
+
+The [CUDA](c:/Users/Admin/Workspace/operator-profiler/CUDA) directory contains the extension scaffold for KV-page operations:
+
+- `bindings.cpp`
+- `kv_page_ops.cu`
+- `setup.py`
+
+This path is intended for future live GPU integration such as:
+
+- KV-page quantization and dequantization
+- page-table compaction
+- prefix hashing or lookup acceleration
+- allocator helpers for paged KV blocks
+
+## Notes
+
+- The current local environment reported `torch 2.10.0+cpu`, so the latest run used CPU fallback rather than a live CUDA execution path.
+- The runtime is currently a synthetic serving simulator designed to isolate cache-policy behavior without requiring model downloads.
+- The target hardware configuration in the project settings is an RTX 5070-class machine with an 8 GB VRAM budget.
+
+## Roadmap
+
+Planned improvements:
+
+- connect the runtime to a real model-serving path
+- run the full suite on the target CUDA machine
+- wire the CUDA extension into live quantize/dequantize calls
+- add allocator and page-table microbenchmarks
+- extend the scheduler to multi-GPU or disaggregated-cache scenarios
+- evaluate quality impact of quantized KV modes with a real model

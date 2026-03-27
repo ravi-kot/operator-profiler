@@ -1,6 +1,8 @@
 """
-    Purpose: single source of truth for resume metrics — gather all artifacts into summary.json and summary.csv
+Purpose: single source of truth for the KV cache serving project summary.
 """
+
+from __future__ import annotations
 
 import argparse
 import csv
@@ -18,97 +20,149 @@ def _ensure_dir(path: Path) -> None:
 
 
 def _load_json(path: Path) -> Optional[Dict[str, Any]]:
-    """Load JSON file if it exists; return None otherwise."""
     if not path.exists():
         return None
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        logging.getLogger(__name__).warning("Could not load %s: %s", path, e)
+    except (json.JSONDecodeError, OSError) as exc:
+        logging.getLogger(__name__).warning("Could not load %s: %s", path, exc)
         return None
 
 
 def build_summary(
-    llm_path: Path,
-    layernorm_path: Path,
+    service_path: Path,
+    burst_path: Path,
+    block_sweep_path: Path,
+    chunked_path: Path,
+    quant_path: Path,
 ) -> Dict[str, Any]:
-    """
-    Build summary dict from artifact paths.
-    LLM: tokens/sec P50, latency P50, peak VRAM P50, model name, GPU name.
-    LayerNorm (if present): baseline P50/P95 ms, optimized P50/P95 ms, speedup P50/P95, max error.
-    """
     summary: Dict[str, Any] = {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        "llm": None,
-        "layernorm": None,
+        "project": {
+            "name": "KV Cache Serving Lab",
+            "tagline": "Paged KV cache, hot-prefix pinning, request-aware policy, reuse-aware scheduling, and cost-aware memory control.",
+        },
+        "headline": {},
+        "experiments": {},
+        "key_findings": [],
     }
 
-    llm = _load_json(llm_path)
-    if llm and llm.get("kind") == "llm_infer_bench":
-        device = llm.get("device") or {}
-        summary["llm"] = {
-            "tokens_per_sec_p50": llm.get("tokens_per_sec", {}).get("p50"),
-            "latency_p50_s": llm.get("latency_seconds", {}).get("p50"),
-            "peak_vram_mb_p50": llm.get("peak_mem_mb", {}).get("p50"),
-            "model": llm.get("model"),
-            "gpu_name": device.get("gpu_name"),
-        }
+    service = _load_json(service_path) or {}
+    burst = _load_json(burst_path) or {}
+    block = _load_json(block_sweep_path) or {}
+    chunked = _load_json(chunked_path) or {}
+    quant = _load_json(quant_path) or {}
 
-    ln = _load_json(layernorm_path)
-    if ln and ln.get("kind") == "layernorm_bench":
-        summary["layernorm"] = {
-            "baseline_p50_ms": ln.get("baseline_ms", {}).get("p50"),
-            "baseline_p95_ms": ln.get("baseline_ms", {}).get("p95"),
-            "optimized_p50_ms": ln.get("optimized_ms", {}).get("p50"),
-            "optimized_p95_ms": ln.get("optimized_ms", {}).get("p95"),
-            "speedup_p50": ln.get("speedup", {}).get("p50"),
-            "speedup_p95": ln.get("speedup", {}).get("p95"),
-            "max_abs_error": ln.get("max_abs_error"),
-        }
+    metrics = service.get("metrics") or {}
+    device = service.get("device") or {}
+    config = service.get("config") or {}
+    cache_cfg = config.get("cache") or {}
+    model_cfg = config.get("model") or {}
+
+    summary["headline"] = {
+        "gpu_target": model_cfg.get("target_gpu"),
+        "runtime_device": device.get("gpu_name") or "CPU fallback in this environment",
+        "ttft_ms_p50": metrics.get("ttft_ms", {}).get("p50"),
+        "decode_latency_ms_per_token_p50": metrics.get("decode_latency_ms_per_token", {}).get("p50"),
+        "throughput_tokens_per_s": metrics.get("throughput_tokens_per_s"),
+        "peak_kv_memory_mb": metrics.get("peak_kv_memory_mb"),
+        "average_active_kv_pages": metrics.get("average_active_kv_pages"),
+        "cache_hit_rate": metrics.get("cache_hit_rate"),
+        "prefix_reuse_rate": metrics.get("prefix_reuse_rate"),
+        "evictions": metrics.get("evictions"),
+        "oom_avoided": metrics.get("oom_avoided"),
+        "fragmentation_ratio": metrics.get("fragmentation_ratio"),
+        "block_size_tokens": cache_cfg.get("block_size_tokens"),
+    }
+
+    summary["experiments"] = {
+        "burst_load": burst.get("results", []),
+        "block_sweep": block.get("results", []),
+        "chunked_prefill": chunked.get("results", []),
+        "kv_quantization": quant.get("results", []),
+    }
+
+    burst_rows = burst.get("results", [])
+    if burst_rows:
+        hardest = burst_rows[-1]
+        baseline_failed = hardest.get("baseline", {}).get("failed_requests", 0)
+        advanced_failed = hardest.get("advanced", {}).get("failed_requests", 0)
+        if baseline_failed or advanced_failed:
+            summary["key_findings"].append(
+                f"At {hardest.get('concurrency')} concurrent requests, reuse-aware serving reduced failed requests from {baseline_failed} to {advanced_failed}."
+            )
+        else:
+            baseline_ttft = hardest.get("baseline", {}).get("ttft_ms", {}).get("p50", 0.0)
+            advanced_ttft = hardest.get("advanced", {}).get("ttft_ms", {}).get("p50", 0.0)
+            baseline_tps = hardest.get("baseline", {}).get("throughput_tokens_per_s", 0.0)
+            advanced_tps = hardest.get("advanced", {}).get("throughput_tokens_per_s", 0.0)
+            summary["key_findings"].append(
+                f"At {hardest.get('concurrency')} concurrent requests, reuse-aware serving cut TTFT p50 from {baseline_ttft:.0f} ms to {advanced_ttft:.0f} ms and raised throughput from {baseline_tps:.0f} to {advanced_tps:.0f} tok/s."
+            )
+
+    block_rows = block.get("results", [])
+    if block_rows:
+        best = max(block_rows, key=lambda row: row.get("throughput_tokens_per_s", 0.0))
+        summary["key_findings"].append(
+            f"Block size {best.get('block_size_tokens')} delivered the best throughput in the sweep while exposing the reuse versus fragmentation tradeoff."
+        )
+
+    quant_rows = quant.get("results", [])
+    if quant_rows:
+        fp16 = next((row for row in quant_rows if row.get("kv_mode") == "fp16"), None)
+        best_mem = min(quant_rows, key=lambda row: row.get("peak_kv_memory_mb", 1e18))
+        if fp16 is not None:
+            savings = 100.0 * (
+                1.0
+                - best_mem.get("peak_kv_memory_mb", 0.0)
+                / max(fp16.get("peak_kv_memory_mb", 1.0), 1.0)
+            )
+            summary["key_findings"].append(
+                f"{best_mem.get('kv_mode')} KV mode cut peak KV memory by about {savings:.1f}% versus fp16 in the quantization study."
+            )
 
     return summary
 
 
 def summary_to_csv_rows(summary: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Flatten summary into one row per section for CSV (one row with all headline fields)."""
     row: Dict[str, Any] = {
         "timestamp_utc": summary.get("timestamp_utc", ""),
-        "gpu_name": "",
-        "llm_model": "",
-        "llm_tokens_per_sec_p50": "",
-        "llm_latency_p50_s": "",
-        "llm_peak_vram_mb_p50": "",
-        "layernorm_baseline_p50_ms": "",
-        "layernorm_baseline_p95_ms": "",
-        "layernorm_optimized_p50_ms": "",
-        "layernorm_optimized_p95_ms": "",
-        "layernorm_speedup_p50": "",
-        "layernorm_speedup_p95": "",
-        "layernorm_max_abs_error": "",
+        "gpu_target": "",
+        "runtime_device": "",
+        "ttft_ms_p50": "",
+        "decode_latency_ms_per_token_p50": "",
+        "throughput_tokens_per_s": "",
+        "peak_kv_memory_mb": "",
+        "average_active_kv_pages": "",
+        "cache_hit_rate": "",
+        "prefix_reuse_rate": "",
+        "evictions": "",
+        "oom_avoided": "",
+        "fragmentation_ratio": "",
+        "top_takeaway": "",
     }
 
-    llm = summary.get("llm") or {}
-    row["gpu_name"] = llm.get("gpu_name") or ""
-    row["llm_model"] = llm.get("model") or ""
-    row["llm_tokens_per_sec_p50"] = llm.get("tokens_per_sec_p50") if llm.get("tokens_per_sec_p50") is not None else ""
-    row["llm_latency_p50_s"] = llm.get("latency_p50_s") if llm.get("latency_p50_s") is not None else ""
-    row["llm_peak_vram_mb_p50"] = llm.get("peak_vram_mb_p50") if llm.get("peak_vram_mb_p50") is not None else ""
-
-    ln = summary.get("layernorm") or {}
-    row["layernorm_baseline_p50_ms"] = ln.get("baseline_p50_ms") if ln.get("baseline_p50_ms") is not None else ""
-    row["layernorm_baseline_p95_ms"] = ln.get("baseline_p95_ms") if ln.get("baseline_p95_ms") is not None else ""
-    row["layernorm_optimized_p50_ms"] = ln.get("optimized_p50_ms") if ln.get("optimized_p50_ms") is not None else ""
-    row["layernorm_optimized_p95_ms"] = ln.get("optimized_p95_ms") if ln.get("optimized_p95_ms") is not None else ""
-    row["layernorm_speedup_p50"] = ln.get("speedup_p50") if ln.get("speedup_p50") is not None else ""
-    row["layernorm_speedup_p95"] = ln.get("speedup_p95") if ln.get("speedup_p95") is not None else ""
-    row["layernorm_max_abs_error"] = ln.get("max_abs_error") if ln.get("max_abs_error") is not None else ""
+    headline = summary.get("headline") or {}
+    row["gpu_target"] = headline.get("gpu_target") or ""
+    row["runtime_device"] = headline.get("runtime_device") or ""
+    row["ttft_ms_p50"] = headline.get("ttft_ms_p50") or ""
+    row["decode_latency_ms_per_token_p50"] = headline.get("decode_latency_ms_per_token_p50") or ""
+    row["throughput_tokens_per_s"] = headline.get("throughput_tokens_per_s") or ""
+    row["peak_kv_memory_mb"] = headline.get("peak_kv_memory_mb") or ""
+    row["average_active_kv_pages"] = headline.get("average_active_kv_pages") or ""
+    row["cache_hit_rate"] = headline.get("cache_hit_rate") or ""
+    row["prefix_reuse_rate"] = headline.get("prefix_reuse_rate") or ""
+    row["evictions"] = headline.get("evictions") or ""
+    row["oom_avoided"] = headline.get("oom_avoided") or ""
+    row["fragmentation_ratio"] = headline.get("fragmentation_ratio") or ""
+    takeaways = summary.get("key_findings") or []
+    row["top_takeaway"] = takeaways[0] if takeaways else ""
 
     return [row]
 
 
 def write_csv(path: Path, summary: Dict[str, Any]) -> None:
-    """Write summary as a single-row CSV (headline metrics)."""
     _ensure_dir(path)
     rows = summary_to_csv_rows(summary)
     if not rows:
@@ -122,19 +176,37 @@ def write_csv(path: Path, summary: Dict[str, Any]) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        description="Gather benchmark artifacts into summary.json and summary.csv"
+        description="Gather KV cache serving artifacts into summary.json and summary.csv"
     )
     ap.add_argument(
-        "--llm",
+        "--service",
         type=Path,
-        default=Path("artifacts/llm.json"),
-        help="Path to llm_infer_bench artifact",
+        default=Path("artifacts/kv_service.json"),
+        help="Path to the main kv_service artifact",
     )
     ap.add_argument(
-        "--layernorm",
+        "--burst",
         type=Path,
-        default=Path("artifacts/layernorm.json"),
-        help="Path to layernorm_bench artifact (optional)",
+        default=Path("artifacts/burst_load.json"),
+        help="Path to the burst-load experiment artifact",
+    )
+    ap.add_argument(
+        "--block_sweep",
+        type=Path,
+        default=Path("artifacts/block_sweep.json"),
+        help="Path to the block-size sweep experiment artifact",
+    )
+    ap.add_argument(
+        "--chunked",
+        type=Path,
+        default=Path("artifacts/chunked_prefill.json"),
+        help="Path to the chunked-prefill experiment artifact",
+    )
+    ap.add_argument(
+        "--quant",
+        type=Path,
+        default=Path("artifacts/kv_quantization.json"),
+        help="Path to the quantization experiment artifact",
     )
     ap.add_argument(
         "--out-dir",
@@ -144,17 +216,19 @@ def main() -> None:
     )
     args = ap.parse_args()
 
-    logger = logging.getLogger(__name__)
-    logger.info("Building summary from %s, %s", args.llm, args.layernorm)
-
-    summary = build_summary(args.llm, args.layernorm)
+    logging.getLogger(__name__).info("Building KV cache summary")
+    summary = build_summary(
+        service_path=args.service,
+        burst_path=args.burst,
+        block_sweep_path=args.block_sweep,
+        chunked_path=args.chunked,
+        quant_path=args.quant,
+    )
     json_path = args.out_dir / "summary.json"
     csv_path = args.out_dir / "summary.csv"
 
     write_json(str(json_path), summary)
     write_csv(csv_path, summary)
-
-    logger.info("Wrote %s and %s", json_path, csv_path)
     print(json.dumps(summary, indent=2))
 
 
