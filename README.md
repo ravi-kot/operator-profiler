@@ -1,12 +1,8 @@
+## Live Dashboard
+
+View the dashboard here: https://ravi-kot.github.io/operator-profiler/
+
 # KV Cache Serving Lab
-
-<<<<<<< HEAD
-A self-contained performance project demonstrating disciplined measurement, operator-level optimization (LayerNorm with Triton), and product-style packaging (JSON/CSV artifacts, static dashboard) — aligned with GPU software engineering and AI-on-GPU workflows.
-=======
-`KV Cache Serving Lab` is an inference-systems project for studying how KV-cache policy affects LLM serving performance under realistic multi-request workloads.
-
-The project started from an operator-profiling codebase and was refactored into a serving-focused lab with:
->>>>>>> 132b43b (Convert project into KV cache serving systems lab)
 
 - paged KV cache simulation
 - hot-prefix pinning
