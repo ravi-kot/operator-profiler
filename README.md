@@ -1,10 +1,9 @@
+## Live Dashboard
+
+View the dashboard here: https://ravi-kot.github.io/operator-profiler/
+
 # KV Cache Serving Lab
 
-KV Cache Serving Lab is a systems-oriented project for evaluating how KV-cache policy shapes LLM serving behavior under shared-prefix, long-context, and burst-load workloads.
-
-Instead of treating KV cache as a hidden implementation detail, this project makes it the main subject of study: how KV pages are allocated, reused, pinned, quantized, evicted, and scheduled when multiple requests compete for limited memory.
-
-## Highlights
 
 - Paged KV cache runtime with block-based accounting
 - Hot-prefix pinning for system prompts, templates, and tool schemas
