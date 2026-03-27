@@ -1,132 +1,79 @@
 # KV Cache Serving Lab
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-`KV Cache Serving Lab` is an inference-systems project for studying how KV-cache policy affects LLM serving performance under realistic multi-request workloads.
+KV Cache Serving Lab is a systems-oriented project for evaluating how KV-cache policy shapes LLM serving behavior under shared-prefix, long-context, and burst-load workloads.
 
-The project started from an operator-profiling codebase and was refactored into a serving-focused lab with:
-=======
-A self-contained performance project demonstrating disciplined measurement, operator-level optimization (LayerNorm with Triton), and product-style packaging (JSON/CSV artifacts, static dashboard) — aligned with GPU software engineering and AI-on-GPU workflows.
->>>>>>> e4165f78fb446c1af0886d196ce1f8fa28d96797
+Instead of treating KV cache as a hidden implementation detail, this project makes it the main subject of study: how KV pages are allocated, reused, pinned, quantized, evicted, and scheduled when multiple requests compete for limited memory.
 
-- paged KV cache simulation
-- hot-prefix pinning
-- request-aware cache policy
-- reuse-aware scheduling
-- cost-aware memory control
-- CUDA extension scaffolding for KV-page operations
+## Highlights
 
-The goal is not just to benchmark one model run. The goal is to measure how cache layout, prefix reuse, scheduling, and memory pressure interact when many requests compete for the same GPU budget.
+- Paged KV cache runtime with block-based accounting
+- Hot-prefix pinning for system prompts, templates, and tool schemas
+- Request-aware cache policy for interactive chat, batch analytics, and long-context jobs
+- Reuse-aware scheduler that batches requests by prefix overlap
+- Cost-aware mode that can quantize or evict lower-value cache state under pressure
+- CUDA/C++ extension scaffold for future KV-page operations
+- Experiment suite covering burst load, block-size sweeps, chunked prefill, and KV quantization
+- Static dashboard and JSON/CSV artifact pipeline for result tracking
 
-## Overview
+## Why This Project Exists
 
-Modern LLM serving is heavily shaped by KV-cache behavior. Long contexts, repeated system prompts, tool schemas, and bursty request traffic can all turn KV cache into a first-order latency and memory bottleneck.
+KV cache is one of the main bottlenecks in modern inference systems. As prompt lengths grow and request traffic becomes more bursty, serving performance depends not only on the model, but also on:
 
-This repository focuses on the serving layer around that problem:
+- how reusable prefixes are identified and kept resident
+- how cache state is laid out and paged
+- how requests are prioritized under memory pressure
+- how batching changes when prefix reuse is available
+- how memory savings affect latency and throughput
 
-- which prefixes should be pinned
-- which requests should get priority
-- how batching should exploit shared prefixes
-- how memory policy should react when capacity becomes tight
-- how to evaluate these decisions with system-level metrics
+This repository focuses on that serving layer.
 
-## Core Features
+## Architecture
 
-### Paged KV Cache
+The project is built around four main ideas:
 
-The runtime models KV storage as fixed-size token blocks so cache usage can be reasoned about in terms of pages, reuse, and fragmentation.
+### 1. Paged KV Cache
 
-### Hot-Prefix Pinning
+The runtime models KV storage as fixed-size token blocks. This makes it possible to reason about:
 
-Frequently reused prefixes such as system prompts, templates, and tool schemas can be pinned so they remain resident across requests.
+- active KV pages
+- memory footprint
+- prefix reuse
+- fragmentation
+- eviction behavior
 
-### Request-Aware Policy
+### 2. Hot-Prefix Pinning
 
-The cache policy distinguishes between:
+High-frequency prefixes can be pinned so they remain resident across requests. The current workload model includes reusable prefixes such as:
 
-- interactive chat
-- batch analytics
-- long-context jobs
+- system prompts
+- shared chat templates
+- repeated tool schemas
 
-This lets the runtime preserve low-latency behavior for high-priority traffic while still supporting heavier workloads.
+### 3. Request-Aware Policy
 
-### Reuse-Aware Scheduler
-
-The scheduler forms batches by prefix overlap instead of pure FIFO order, increasing cache reuse and improving throughput under bursty traffic.
-
-### Cost-Aware Mode
-
-When memory pressure rises, the runtime can respond by:
-
-- quantizing lower-value KV pages
-- evicting stale reusable blocks
-- reducing effective batch size
-
-=======
-A self-contained performance project demonstrating disciplined measurement, operator-level optimization (LayerNorm with Triton), and product-style packaging (JSON/CSV artifacts, static dashboard) — aligned with GPU software engineering and AI-on-GPU workflows.
-=======
-`KV Cache Serving Lab` is an inference-systems project for studying how KV-cache policy affects LLM serving performance under realistic multi-request workloads.
-
-The project started from an operator-profiling codebase and was refactored into a serving-focused lab with:
->>>>>>> 132b43b (Convert project into KV cache serving systems lab)
-
-- paged KV cache simulation
-- hot-prefix pinning
-- request-aware cache policy
-- reuse-aware scheduling
-- cost-aware memory control
-- CUDA extension scaffolding for KV-page operations
-
-The goal is not just to benchmark one model run. The goal is to measure how cache layout, prefix reuse, scheduling, and memory pressure interact when many requests compete for the same GPU budget.
-
-## Overview
-
-Modern LLM serving is heavily shaped by KV-cache behavior. Long contexts, repeated system prompts, tool schemas, and bursty request traffic can all turn KV cache into a first-order latency and memory bottleneck.
-
-This repository focuses on the serving layer around that problem:
-
-- which prefixes should be pinned
-- which requests should get priority
-- how batching should exploit shared prefixes
-- how memory policy should react when capacity becomes tight
-- how to evaluate these decisions with system-level metrics
-
-## Core Features
-
-### Paged KV Cache
-
-The runtime models KV storage as fixed-size token blocks so cache usage can be reasoned about in terms of pages, reuse, and fragmentation.
-
-### Hot-Prefix Pinning
-
-Frequently reused prefixes such as system prompts, templates, and tool schemas can be pinned so they remain resident across requests.
-
-### Request-Aware Policy
-
-The cache policy distinguishes between:
+The system treats different traffic classes differently:
 
 - interactive chat
 - batch analytics
 - long-context jobs
 
-This lets the runtime preserve low-latency behavior for high-priority traffic while still supporting heavier workloads.
+This enables policy decisions that favor latency-sensitive traffic while still supporting larger batch-oriented workloads.
 
-### Reuse-Aware Scheduler
+### 4. Reuse-Aware Scheduling
 
-The scheduler forms batches by prefix overlap instead of pure FIFO order, increasing cache reuse and improving throughput under bursty traffic.
+Instead of batching requests strictly by arrival order, the scheduler groups work by shared-prefix overlap. This increases prefix reuse and improves efficiency under bursty multi-request traffic.
 
-### Cost-Aware Mode
+### 5. Cost-Aware Memory Control
 
-When memory pressure rises, the runtime can respond by:
+When the cache approaches its budget, the runtime can react by:
 
 - quantizing lower-value KV pages
-- evicting stale reusable blocks
-- reducing effective batch size
+- evicting stale reusable pages
+- shrinking effective batch size
 
->>>>>>> branch1
 ## Metrics Tracked
 
-The project tracks serving metrics that matter at the systems level:
+The benchmark pipeline records the metrics that matter for serving systems:
 
 - TTFT
 - decode latency per token
@@ -141,7 +88,7 @@ The project tracks serving metrics that matter at the systems level:
 
 ## Latest Results
 
-The latest local benchmark summary from `artifacts/summary.json` reports:
+The latest local summary in `artifacts/summary.json` reports:
 
 | Metric | Value |
 |---|---:|
@@ -156,11 +103,50 @@ The latest local benchmark summary from `artifacts/summary.json` reports:
 
 Selected experiment outcomes:
 
-- At 100 concurrent requests, the reuse-aware serving path reduced TTFT P50 from `10964 ms` to `6988 ms`.
-- At 100 concurrent requests, throughput improved from `1613 tok/s` to `1817 tok/s` versus the baseline path.
-- KV quantization reduced peak KV memory by about `50%` versus fp16 in the synthetic study.
+- At 100 concurrent requests, the reuse-aware path reduced TTFT P50 from `10964 ms` to `6988 ms`
+- At 100 concurrent requests, throughput improved from `1613 tok/s` to `1817 tok/s`
+- KV quantization reduced peak KV memory by about `50%` versus fp16 in the synthetic study
 
-## Repository Structure
+## Experiments
+
+### Burst Load
+
+Compares a baseline FIFO path against the reuse-aware path at:
+
+- 10 concurrent requests
+- 50 concurrent requests
+- 100 concurrent requests
+
+Goal:
+- evaluate whether scheduling plus paged cache behavior remains stable as concurrency rises
+
+### Block-Size Sweep
+
+Sweeps:
+
+- 8-token blocks
+- 16-token blocks
+- 32-token blocks
+- 64-token blocks
+
+Goal:
+- study the tradeoff between prefix reuse and fragmentation
+
+### Chunked Prefill
+
+Tests chunked-prefill settings for long-context workloads.
+
+Goal:
+- measure TTFT and long-context stability under heavier prompt loads
+
+### KV Quantization
+
+Compares fp16, fp8-style, and int8 KV storage modes.
+
+Goal:
+- measure memory savings and observe any throughput or fidelity tradeoff
+
+## Repository Layout
 
 ```text
 operator-profiler/
@@ -197,7 +183,7 @@ This generates:
 
 ### Open the Dashboard
 
-You can open [dashboard/index.html](c:/Users/Admin/Workspace/operator-profiler/dashboard/index.html) directly, or run a local server:
+Open the dashboard directly or serve it locally:
 
 ```powershell
 cd c:\Users\Admin\Workspace\operator-profiler\dashboard
@@ -208,7 +194,7 @@ Then visit `http://127.0.0.1:8080`.
 
 ## Main Commands
 
-Run the primary benchmark:
+Run the main serving benchmark:
 
 ```powershell
 python -m bench.kv_service_bench --out artifacts\kv_service.json
@@ -232,7 +218,7 @@ Run the chunked-prefill study:
 python -m bench.experiment_chunked_prefill --out artifacts\chunked_prefill.json
 ```
 
-Run the KV-quantization study:
+Run the quantization study:
 
 ```powershell
 python -m bench.experiment_kv_quantization --out artifacts\kv_quantization.json
@@ -244,48 +230,31 @@ Rebuild the consolidated summary:
 python -m bench.summarize --out-dir artifacts
 ```
 
-## Experiments Included
-
-### Burst Load
-
-Compares a baseline FIFO path against the reuse-aware serving path at `10`, `50`, and `100` concurrent requests.
-
-### Block-Size Sweep
-
-Sweeps `8`, `16`, `32`, and `64` token blocks to study the tradeoff between reuse and fragmentation.
-
-### Chunked Prefill
-
-Measures how chunking affects TTFT and long-context stability.
-
-### KV Quantization
-
-Compares fp16, fp8-style, and int8 KV storage modes for memory savings, latency, and reconstruction fidelity.
-
 ## CUDA Support
 
-The [CUDA](c:/Users/Admin/Workspace/operator-profiler/CUDA) directory contains the extension scaffold for KV-page operations:
+The `CUDA/` directory contains the extension scaffold for future GPU-backed KV-page operations:
 
 - `bindings.cpp`
 - `kv_page_ops.cu`
 - `setup.py`
 
-This path is intended for future live GPU integration such as:
+Planned extension targets include:
 
 - KV-page quantization and dequantization
 - page-table compaction
-- prefix hashing or lookup acceleration
+- prefix lookup acceleration
 - allocator helpers for paged KV blocks
 
 ## Notes
 
-- The current local environment reported `torch 2.10.0+cpu`, so the latest run used CPU fallback rather than a live CUDA execution path.
-- The runtime is currently a synthetic serving simulator designed to isolate cache-policy behavior without requiring model downloads.
-- The target hardware configuration in the project settings is an RTX 5070-class machine with an 8 GB VRAM budget.
+- The most recent local run used CPU fallback because the environment reported `torch 2.10.0+cpu`
+- The current runtime is a synthetic serving simulator intended to isolate cache-policy behavior without requiring model downloads
+- The target hardware configuration in the project settings is an RTX 5070-class machine with an 8 GB VRAM budget
+- Reported memory metrics come from the simulator configuration and experiment model, not a live GPU memory trace
 
 ## Roadmap
 
-Planned improvements:
+Planned next steps:
 
 - connect the runtime to a real model-serving path
 - run the full suite on the target CUDA machine
