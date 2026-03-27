@@ -1,6 +1,7 @@
 # KV Cache Serving Lab
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 `KV Cache Serving Lab` is an inference-systems project for studying how KV-cache policy affects LLM serving performance under realistic multi-request workloads.
 
 The project started from an operator-profiling codebase and was refactored into a serving-focused lab with:
@@ -61,6 +62,68 @@ When memory pressure rises, the runtime can respond by:
 - evicting stale reusable blocks
 - reducing effective batch size
 
+=======
+A self-contained performance project demonstrating disciplined measurement, operator-level optimization (LayerNorm with Triton), and product-style packaging (JSON/CSV artifacts, static dashboard) — aligned with GPU software engineering and AI-on-GPU workflows.
+=======
+`KV Cache Serving Lab` is an inference-systems project for studying how KV-cache policy affects LLM serving performance under realistic multi-request workloads.
+
+The project started from an operator-profiling codebase and was refactored into a serving-focused lab with:
+>>>>>>> 132b43b (Convert project into KV cache serving systems lab)
+
+- paged KV cache simulation
+- hot-prefix pinning
+- request-aware cache policy
+- reuse-aware scheduling
+- cost-aware memory control
+- CUDA extension scaffolding for KV-page operations
+
+The goal is not just to benchmark one model run. The goal is to measure how cache layout, prefix reuse, scheduling, and memory pressure interact when many requests compete for the same GPU budget.
+
+## Overview
+
+Modern LLM serving is heavily shaped by KV-cache behavior. Long contexts, repeated system prompts, tool schemas, and bursty request traffic can all turn KV cache into a first-order latency and memory bottleneck.
+
+This repository focuses on the serving layer around that problem:
+
+- which prefixes should be pinned
+- which requests should get priority
+- how batching should exploit shared prefixes
+- how memory policy should react when capacity becomes tight
+- how to evaluate these decisions with system-level metrics
+
+## Core Features
+
+### Paged KV Cache
+
+The runtime models KV storage as fixed-size token blocks so cache usage can be reasoned about in terms of pages, reuse, and fragmentation.
+
+### Hot-Prefix Pinning
+
+Frequently reused prefixes such as system prompts, templates, and tool schemas can be pinned so they remain resident across requests.
+
+### Request-Aware Policy
+
+The cache policy distinguishes between:
+
+- interactive chat
+- batch analytics
+- long-context jobs
+
+This lets the runtime preserve low-latency behavior for high-priority traffic while still supporting heavier workloads.
+
+### Reuse-Aware Scheduler
+
+The scheduler forms batches by prefix overlap instead of pure FIFO order, increasing cache reuse and improving throughput under bursty traffic.
+
+### Cost-Aware Mode
+
+When memory pressure rises, the runtime can respond by:
+
+- quantizing lower-value KV pages
+- evicting stale reusable blocks
+- reducing effective batch size
+
+>>>>>>> branch1
 ## Metrics Tracked
 
 The project tracks serving metrics that matter at the systems level:
