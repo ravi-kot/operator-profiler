@@ -1,8 +1,12 @@
 # KV Cache Serving Lab
 
+<<<<<<< HEAD
 `KV Cache Serving Lab` is an inference-systems project for studying how KV-cache policy affects LLM serving performance under realistic multi-request workloads.
 
 The project started from an operator-profiling codebase and was refactored into a serving-focused lab with:
+=======
+A self-contained performance project demonstrating disciplined measurement, operator-level optimization (LayerNorm with Triton), and product-style packaging (JSON/CSV artifacts, static dashboard) — aligned with GPU software engineering and AI-on-GPU workflows.
+>>>>>>> e4165f78fb446c1af0886d196ce1f8fa28d96797
 
 - paged KV cache simulation
 - hot-prefix pinning
