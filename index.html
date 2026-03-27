@@ -3,28 +3,116 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OperatorProfiler — GPU Performance Summary</title>
+  <title>KV Cache Serving Lab</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="container">
-    <h1>OperatorProfiler</h1>
-    <p class="subtitle" id="subtitle">Loading summary…</p>
-
-    <section class="cards" id="cards" aria-hidden="true"></section>
-    <section class="table_wrap" id="table_wrap" aria-hidden="true">
-      <table>
-        <thead>
-          <tr><th>Metric</th><th>Value</th></tr>
-        </thead>
-        <tbody id="table_body"></tbody>
-      </table>
+  <div class="backdrop"></div>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">Inference Systems Project</p>
+      <h1>KV Cache Serving Lab</h1>
+      <p class="hero_copy" id="subtitle">Loading summary...</p>
+      <div class="status" id="status"></div>
     </section>
-    <div class="status" id="status" aria-hidden="true"></div>
-  </div>
-  <div class="container loading" id="loading">Loading summary…</div>
-  <div class="container error" id="error" style="display:none"></div>
 
+    <section class="cards" id="cards"></section>
+
+    <section class="panel">
+      <div class="panel_header">
+        <h2>Key Findings</h2>
+        <p>High-level results from the latest benchmark suite.</p>
+      </div>
+      <div class="takeaways" id="takeaways"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel_header">
+        <h2>Burst Load</h2>
+        <p>Compare FIFO against the reuse-aware paged KV serving path.</p>
+      </div>
+      <div class="table_wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Concurrency</th>
+              <th>Baseline TTFT P50</th>
+              <th>Advanced TTFT P50</th>
+              <th>Baseline Throughput</th>
+              <th>Advanced Throughput</th>
+              <th>Advanced Hit Rate</th>
+            </tr>
+          </thead>
+          <tbody id="burst_body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="grid">
+      <section class="panel">
+        <div class="panel_header">
+          <h2>Block Sweep</h2>
+          <p>Reuse versus fragmentation tradeoff.</p>
+        </div>
+        <div class="table_wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Block Size</th>
+                <th>Throughput</th>
+                <th>Reuse Rate</th>
+                <th>Fragmentation</th>
+              </tr>
+            </thead>
+            <tbody id="block_body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel_header">
+          <h2>Chunked Prefill</h2>
+          <p>Long-context stability and TTFT.</p>
+        </div>
+        <div class="table_wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Chunk Size</th>
+                <th>TTFT P50</th>
+                <th>TTFT P95</th>
+                <th>Throughput</th>
+              </tr>
+            </thead>
+            <tbody id="chunk_body"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel">
+      <div class="panel_header">
+        <h2>KV Quantization</h2>
+        <p>Memory savings versus fidelity.</p>
+      </div>
+      <div class="table_wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Mode</th>
+              <th>Peak KV Memory</th>
+              <th>Throughput</th>
+              <th>Cosine Similarity</th>
+              <th>RMSE</th>
+            </tr>
+          </thead>
+          <tbody id="quant_body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="summary.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

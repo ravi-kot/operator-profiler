@@ -1,4 +1,4 @@
-{
+window.__KV_CACHE_SUMMARY__ = {
   "timestamp_utc": "2026-03-27T04:01:41.326038+00:00",
   "project": {
     "name": "KV Cache Serving Lab",
@@ -382,4 +382,4 @@
     "Block size 64 delivered the best throughput in the sweep while exposing the reuse versus fragmentation tradeoff.",
     "fp8 KV mode cut peak KV memory by about 50.0% versus fp16 in the quantization study."
   ]
-}
+};
